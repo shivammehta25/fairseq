@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import datetime as dt
+
 import numpy as np
 import torch
 
@@ -146,7 +148,9 @@ class MultiDecoderSpeechGenerator(SpeechGenerator):
         self.tgt_dict_mt = tgt_dict_mt
         self.eos_mt = eos_mt
 
-        from examples.speech_to_speech.unity.sequence_generator import SequenceGenerator
+        from examples.speech_to_speech.unity.sequence_generator import \
+            SequenceGenerator
+
         from fairseq import search
 
         self.text_generator = SequenceGenerator(
@@ -327,6 +331,7 @@ class NonAutoregressiveSpeechGenerator(SpeechGenerator):
     def generate(self, model, sample, has_targ=False, **kwargs):
         model.eval()
 
+        t = dt.datetime.now()        
         bsz, max_src_len = sample["net_input"]["src_tokens"].size()
         n_frames_per_step = model.encoder.n_frames_per_step
         out_dim = model.encoder.out_dim
@@ -355,6 +360,9 @@ class NonAutoregressiveSpeechGenerator(SpeechGenerator):
             return r
 
         out_lens = out_lens * n_frames_per_step
+        t = (dt.datetime.now() - t).total_seconds()
+        rtf = t * 22050 / (feat.shape[-2] * 256)
+        
         finalized = [
             {
                 "feature": feat[b, :l] if l > 0 else feat.new_zeros([1, raw_dim]),
@@ -362,6 +370,7 @@ class NonAutoregressiveSpeechGenerator(SpeechGenerator):
                     feat[b, :l] if l > 0 else feat.new_zeros([1, raw_dim])
                 ),
                 "attn": feat.new_tensor(get_dur_plot_data(dur_out[b])),
+                "rtf": rtf
             }
             for b, l in zip(range(bsz), out_lens)
         ]
